@@ -1,0 +1,66 @@
+function correlations = dg_matchClustCorrelHist(varargin)
+%correlations = dg_matchClustFalseHist(sessiondir1, sessiondir2)
+%
+% If sessiondir2 is not given, finds all Multiple Cut Cluster .MAT files
+% from the session represented by sessiondir1 (i.e. files in the parent
+% directory of sessiondir1 with filenames of the form 'sessionid-Tnn.MAT',
+% e.g. 'ACQ06-T03.MAT'), and computes the waveform correlations between all
+% pairs of clusters from different files, i.e. between all independent
+% pairs of distinct units. (Clusters from the same electrode could
+% potentially represent the same unit, and necessarily have anticorrelated
+% waveforms because of the disjoint nature of cluster cutting.) 
+%
+% If sessiondir2 is given, performs the same between all pairs of clusters
+% from different sessions in files of the same name, i.e. between pairs of
+% clusters recorded on the same electrode in different sessions.
+%
+% In either case, displays a histogram of the distribution of correlation
+% values, and returns the complete set of values in <correlations>.
+
+%$Rev$
+%$Date$
+%$Author$
+
+numsessions = length(varargin);
+
+% Find spike files, get waveforms
+for snum = 1:numsessions
+    [animaldir, sessionID] = fileparts(varargin{snum});
+    MATfiles = dir(fullfile(animaldir, [sessionID '-T*.MAT']));
+    % Eliminate any files that have non-numeric characters inserted where the
+    % electrode number should be, or that have just a single digit there:
+    mismatch = [];
+    for k = 1:length(MATfiles)
+        if isempty(regexpi(MATfiles(k).name, [sessionID '-T\d\d+\.MAT']))
+            mismatch(end+1) = k;
+        end
+    end
+    MATfiles(mismatch) = [];
+    spikewaves{snum} = cell(size(MATfiles));
+    for k = 1:length(MATfiles)
+        spikewaves{snum}{k} = dg_lookupSpikeWaveforms( ...
+            fullfile(animaldir, MATfiles(k).name) );
+    end
+end
+
+correlations = [];
+thresh = 0.9;
+if numsessions == 1
+    for k = 1 : (length(spikewaves{1}) - 1)
+        for m = (k+1) : length(spikewaves{1})
+            [clusterpairs, correl] = dg_matchClusters(spikewaves{1}{k}, spikewaves{1}{m}, thresh);
+            correlations = [correlations; correl(:)];
+        end
+    end
+else
+    for k = 1 : length(spikewaves{1})
+        for m = (k+1) : length(spikewaves{2})
+            [clusterpairs, correl] = dg_matchClusters(spikewaves{1}{k}, spikewaves{2}{m}, thresh);
+            correlations = [correlations; correl(:)];
+        end
+    end
+end
+
+figure;
+bins=(0:200)/200;
+hist(correlations, bins);

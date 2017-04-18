@@ -1,0 +1,20 @@
+function dg_MakeMonkeyMatlab(directory)
+%dg_MakeMonkeyMatlab(directory)
+
+% Converts the Neuralynx-format monkey data files in directory that are
+% needed by lfp_lib into equivalent .MAT files.
+
+%$Rev$
+%$Date$
+%$Author$
+
+DataFiles = dir(directory);
+for file = DataFiles'
+    if ~strcmp(file.name, '.') && ~strcmp(file.name, '..')
+        [pathstr,name,ext,versn] = fileparts(file.name);
+        if strcmpi(ext, '.NCS') || strcmpi(ext, '.NEV')
+            dg_Nlx2Mat(fullfile(directory, file.name));
+        end
+    end
+end
+    

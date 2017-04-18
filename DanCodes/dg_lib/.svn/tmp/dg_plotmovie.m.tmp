@@ -1,0 +1,67 @@
+function mov = dg_plotmovie(framesize, X, Y, varargin)
+%mov = dg_plotmovie(framesize, X, Y, ...)
+%mov = dg_plotmovie(framesize, X, Y, 'axprops', {val1, ...}, ...)
+% End result is equivalent to
+%   plot(X,Y,...)
+% but returns a Matlab movie file of the process by recording a frame from
+% the current axes every <framesize> points.  If either of X or Y is a
+% matrix, then successive points are assumed to go down the columns of the
+% matrix.  If the number of data points is not an integral multiple of
+% <framesize>, the remaining points are plotted as the last frame.
+%OPTIONS
+% 'axprops' - passes the contents of each cell in the cell array {val1,
+%   ...} to the "axis" function after plotting the first frame.  This
+%   option must immediately follow X and Y in the argument list.
+
+%$Rev$
+%$Date$
+%$Author$
+
+if fix(framesize) ~= framesize
+    warning('dg_plotmovie:framesize', ...
+        'Rounding framesize to integer' );
+    framesize = round(framesize);
+end
+
+hold_on = ishold;
+if numel(X) == length(X)
+    X = reshape(X, [], 1);
+end
+if numel(Y) == length(Y)
+    Y = reshape(Y, [], 1);
+end
+if (numel(X) ~= length(X)) || (numel(Y) ~= length(Y))
+    if size(X, 1) ~= size(Y, 1)
+        error('dg_plotmovie:points', ...
+            'The number of points (rows) in X and Y must be the same.' );
+    end
+end
+if (length(varargin) > 1) && isequal(varargin{1}, 'axprops')
+    axprops = varargin{2};
+    varargin = varargin(3:end);
+else
+    axprops = [];
+end
+numframes = ceil(numel(X)/framesize);
+if numframes == 1
+    lastpt = numel(X);
+else
+    lastpt = framesize;
+end
+plot(X(1:lastpt,:), Y(1:lastpt,:), varargin{:});
+for k = 1:length(axprops)
+    axis(axprops{k});
+end
+mov = getframe(gca);
+if numframes > 1
+    hold on;
+    for framenum = 2:numframes
+        firstpt = (framenum-1) * framesize; % overlap previous by 1 point
+        lastpt = min(framenum * framesize, numel(X));
+        plot(X(firstpt:lastpt,:), Y(firstpt:lastpt,:), varargin{:});
+        mov(end+1) = getframe(gca);
+    end
+end
+if ~hold_on
+    hold off;
+end

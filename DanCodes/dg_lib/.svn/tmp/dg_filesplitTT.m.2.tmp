@@ -1,0 +1,20 @@
+function dg_filesplitTT(infile, outfiles, offset, nrec1)
+%dg_filesplitTT(infile, outfiles, offset)
+% The inverse of dg_filecatTT, except of course the second file just gets
+% another copy of the same header.
+
+%$Rev$
+%$Date$
+%$Author$
+
+[TimeStamps, ScNumbers, CellNumbers, Params, DataPoints, NlxHeader] = ...
+    Nlx2MatTT(infile,1,1,1,1,1,1);
+
+Mat2NlxTT(outfiles{1}, 0, 1, 1, nrec1, [1 1 1 1 1 1], ...
+    TimeStamps(1:nrec1), ScNumbers(1:nrec1), CellNumbers(1:nrec1), ...
+    Params(:, 1:nrec1), DataPoints(:, :, 1:nrec1), NlxHeader );
+
+Mat2NlxTT(outfiles{2}, 0, 1, 1, size(DataPoints,3) - nrec1, [1 1 1 1 1 1], ...
+    TimeStamps(nrec1+1:end) - offset, ScNumbers(nrec1+1:end), ...
+    CellNumbers(nrec1+1:end), Params(:, nrec1+1:end), ...
+    DataPoints(:, :, nrec1+1:end), NlxHeader );

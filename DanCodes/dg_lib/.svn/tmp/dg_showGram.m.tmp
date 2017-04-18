@@ -1,0 +1,31 @@
+function [hI, hCB] = dg_showGram(hDisp, xvals, yvals, data, ...
+    titlestr, xlabstr, ylabstr, cbarlabel)
+%[hI, hCB] = dg_showGram(hDisp, xvals, yvals, data, ...
+%     titlestr, xlabstr, ylabstr, cbarlabel)
+% Displays color-scaled <data> with a colorbar in a specified display
+% object, which may be either a figure (for single-plot figures) or an axes
+% (for subplot figures).
+% If <cbarlabel> = 'none', no colorbar is displayed.
+
+%$Rev$
+%$Date$
+%$Author$
+
+switch get(hDisp, 'Type')
+    case 'axes'
+        hA = hDisp;
+    case 'figure'
+        hA = axes('Parent', hDisp);
+end
+hI = imagesc(xvals, yvals, data,'Parent', hA);
+set(hA, 'YDir', 'normal');
+set(get(hA,'XLabel'),'String',xlabstr);
+set(get(hA,'YLabel'),'String',ylabstr);
+title(hA, titlestr);
+if isequal(cbarlabel, 'none')
+    hCB = [];
+else
+    hCB = colorbar('peer', hA);
+    set(get(hCB,'YLabel'),'String',cbarlabel);
+end
+

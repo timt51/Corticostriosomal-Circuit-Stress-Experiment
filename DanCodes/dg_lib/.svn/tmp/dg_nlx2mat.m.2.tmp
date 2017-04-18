@@ -1,0 +1,52 @@
+function dg_Nlx2Mat(pathname)
+%dg_Nlx2Mat(pathname)
+% A wrapper for converting monkey data from Neuralynx format to .MAT format
+% so they can be read on a Mac.
+
+% <pathname> is either an absolute pathname to the file that needs
+% converting, or it is relative to the current Matlab working directory.
+% This function reads the file into as many Matlab variables as are
+% required to hold all the data that are used by lfp_lib, and then saves
+% them to a .MAT file of the same name in the same directory as the source
+% file.  The variable names are as specified in the Neuralynx .M files but
+% with 'dg_Nlx2Mat_' prepended.
+
+% 1/31/2007: DG added code re: dg_Nlx2Mat_SamplesUnits but did not test;
+% note that there is no provision for disabling conversion to voltage.
+
+%$Rev$
+%$Date$
+%$Author$
+
+[pathstr,name,ext,versn] = fileparts(pathname);
+ext = upper(ext);
+matfilename = fullfile(pathstr, [ name '.MAT' ]);
+switch ext
+    case '.NCS'
+        [dg_Nlx2Mat_Timestamps dg_Nlx2Mat_Samples header] = ...
+            Nlx2MatCSC(pathname, [1, 0, 0, 0, 1], 1, 1);
+        dg_Nlx2Mat_SamplesUnits = 'AD';
+        for k = 1:length(header)
+            if regexp(header{k}, '^\s*-ADBitVolts\s+')
+                ADBitVoltstr = regexprep(header{k}, ...
+                    '^\s*-ADBitVolts\s+', '');
+                ADBitVolts = str2num(ADBitVoltstr);
+                if isempty(ADBitVolts)
+                    warning(lfp_read2:badADBitVolts', ...
+                        'Could not convert number from:\n%s', ...
+                        header{k} );
+                else
+                    lfp_Samples{filenum} = ADBitVolts ...
+                        * lfp_Samples{filenum};
+                    dg_Nlx2Mat_SamplesUnits = 'V';
+                end
+            end
+        end
+        save(matfilename, 'dg_Nlx2Mat_Timestamps', ...
+            'dg_Nlx2Mat_Samples', 'dg_Nlx2Mat_SamplesUnits');
+    case '.NEV'
+        [dg_Nlx2Mat_Timestamps, dg_Nlx2Mat_EventStrings] = ...
+            Nlx2MatEV(pathname, [1, 0, 0, 0, 1], 0, 1);
+        save(matfilename, 'dg_Nlx2Mat_Timestamps', ...
+            'dg_Nlx2Mat_EventStrings');
+end

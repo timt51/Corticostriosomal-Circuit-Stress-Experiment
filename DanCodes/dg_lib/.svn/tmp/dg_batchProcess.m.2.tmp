@@ -1,0 +1,21 @@
+function dg_batchProcess(funchandle, varargin)
+%BATCHPROCESS executes any function wrapped in error handling with logging,
+%and then exits Matlab.
+% batchProcess(funchandle, varargin)
+%   <funchandle> is an arbitrary function handle, and <varargin> is its
+%   argument list.
+
+%$Rev$
+%$Date$
+%$Author$
+
+disp(sprintf('Matlab version %s\n', version));
+try
+    feval(funchandle, varargin{:});
+catch
+    [msgstr, msgid] = lasterr;
+    logmsg = sprintf('Error while processing %s(%s)\n%s\n%s', ...
+        func2str(funchandle), dg_thing2str(varargin{1}), msgid, msgstr );
+    disp(logmsg);
+end
+exit;

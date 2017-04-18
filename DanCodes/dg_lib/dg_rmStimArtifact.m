@@ -1,0 +1,274 @@
+function [trigTS, sameTS] = dg_rmStimArtifact(ctrlfilepath, filenames, ...
+    offsets, varargin)
+% Linearly interpolates stimulus artifacts for fearless filtering.
+%INPUTS
+% ctrlfilepath: path to a CSC file that contains data used to control the
+%   timing of the interpolations.  This could be a recorded CSC file
+%   containing large stimulation artifacts, or a control signal that was
+%   triggering the stimulator.  It is thresholded at half of its maximum
+%   positive-going excursion from the median to generate trigger
+%   timestamps. Uses >, <=, so can trigger on waveform that just touches
+%   threshold, but will not miss any crossings.  An error is raised if the
+%   file does not contain samples that have the statistics expected of a
+%   control channel, i.e. a sample value histogram with the largest peak
+%   near (within one tenth of the maximum excursion from) the median and
+%   the next largest peak above the threshold.
+% filenames: cell array of names of files to process.  By default, it is
+%   assumed that they are in the same directory specified by
+%   <ctrlfilepath>.  File extensions must be either '.mat' or '.ncs'.
+% offsets: a two-element vector of times with respect to trigger timestamps
+%   specifying the start and end times for the linear interpolation.  May
+%   be positive or negative, but second element must be greater than first.
+%   Specified in seconds if raw recorded timestamps are in microseconds.
+%   Second element also determines a "time-out" period during which
+%   additional triggers are ignored.
+%OUTPUTS
+% A '.mat' file is created whose name is composed of the base name of the
+%   input file plus the suffix 'rmstim', with the extension '.mat'.  By
+%   default, output files are created in the same directory specified by
+%   <ctrlfilepath>.  Note that if the input files are in the same
+%   directory, and they also have extension '.mat', then they will be
+%   overwritten.
+% trigTS: a column vector of timestamps of all detected stimulation
+%   triggers.
+% sameTS: for each file in <filenames>, true if the recorded frame
+%   timestamps are the same as the ones in <ctrlfilepath>.
+%OPTIONS
+% 'dest', dest - path to the directory to which output files will be
+%   written.
+% 'noVscale' - produces output in raw AD units instead of scaling according
+%   to the .ncs file's 'bitvolts' value.
+% 'src', src - path to the directory from which input files will be read.
+% 'thresh', thresh - fraction of maximum excursion (measured from median
+%   value to maximum value) at which to generate trigger timestamp.
+%   Default = 0.5.
+% 'timeout', timeout - amount of time after a trigger is detected during
+%   which any additional triggers are ignored.  Default = <offset(2)>.
+% 'verbose' - produces progress report messages in command window.
+%NOTES
+% Timestamps are internally represented in the same integer units
+% (assumed to be microsec) as in the data file.
+%   See also dg_convertStimSession.
+
+%$Rev: 214 $
+%$Date: 2015-03-26 00:09:24 -0400 (Thu, 26 Mar 2015) $
+%$Author: dgibson $
+
+[ctrldir, ~, ext] = fileparts(ctrlfilepath);
+if isempty(ctrldir)
+    ctrldir = pwd;
+end
+
+dest = ctrldir;
+offsets = 1e6 * offsets;
+src = ctrldir;
+thresh = 0.5;
+timeout = offsets(2);
+verboseflag = false;
+vscale = true;
+
+argnum = 1;
+while argnum <= length(varargin)
+    if ischar(varargin{argnum})
+        switch varargin{argnum}
+            case 'dest'
+                argnum = argnum + 1;
+                dest = varargin{argnum};
+            case 'noVscale'
+                vscale = false;
+            case 'src'
+                argnum = argnum + 1;
+                src = varargin{argnum};
+            case 'thresh'
+                argnum = argnum + 1;
+                thresh = varargin{argnum};
+            case 'timeout'
+                argnum = argnum + 1;
+                timeout = varargin{argnum};
+            case 'verbose'
+                verboseflag = true;
+            otherwise
+                error('dg_rmStimArtifact:badoption', ...
+                    'The option %s is not recognized.', ...
+                    dg_thing2str(varargin{argnum}));
+        end
+    else
+        error('dg_rmStimArtifact:badoption2', ...
+            'The value %s occurs where an option name was expected', ...
+            dg_thing2str(varargin{argnum}));
+    end
+    argnum = argnum + 1;
+end
+
+% Read the control file and generate stimulus trigger timestamps
+switch lower(ext)
+    case '.ncs'
+        [ctrlTS, dg_Nlx2Mat_Samples] = dg_readCSC( ...
+            ctrlfilepath );
+    case '.mat'
+        load(ctrlfilepath);
+        ctrlTS = dg_Nlx2Mat_Timestamps; %#ok<NODEF>
+    otherwise
+        error('dg_rmStimArtifact:badinfiletype', ...
+            'Unrecognized file extension: %s', ext);
+end
+if verboseflag
+    fprintf('Read %s\n', ctrlfilepath);
+end
+sampleperiod = median(diff(ctrlTS)) / ...
+    size(dg_Nlx2Mat_Samples,1);
+allTS = round(repmat(ctrlTS, size(dg_Nlx2Mat_Samples,1), 1) ...
+    + sampleperiod * repmat( ...
+    (0:size(dg_Nlx2Mat_Samples,1) - 1)', 1, size(dg_Nlx2Mat_Samples, 2) ));
+[threshval, isgood] = ctrlfileStats(dg_Nlx2Mat_Samples, thresh);
+if ~isgood
+    error('dg_rmStimArtifact:ctrl', ...
+        'The control file appears not to contain a control signal:\n%s', ...
+        ctrlfilepath);
+end
+% trigsamp is first strictly-above-threshold sample
+trigsamp = find( (dg_Nlx2Mat_Samples(2 : end) > threshval) ...
+    & (dg_Nlx2Mat_Samples(1 : end - 1) <= threshval) ) + 1;
+timeoutpts = round(timeout/sampleperiod);
+trigsampdiff = diff(trigsamp);
+trigsamp(find(trigsampdiff < timeoutpts) + 1) = [];
+trigTS = reshape(allTS(trigsamp), [], 1); % TS of trigsamp
+if verboseflag
+    fprintf('Found %d trigger times\n', length(trigTS));
+end
+
+% Interpolate away the stimulus artifacts
+sameTS = false(size(filenames));
+for fileidx = 1:length(filenames)
+    [~, ~, ext] = fileparts(filenames{fileidx});
+    switch lower(ext)
+        case '.ncs'
+            [dg_Nlx2Mat_Timestamps, dg_Nlx2Mat_Samples, header] = ...
+                dg_readCSC(fullfile(src, filenames{fileidx}));
+            if vscale
+                for k = 1:length(header)
+                    if regexp(header{k}, '^\s*-ADBitVolts\s+')
+                        ADBitVoltstr = regexprep(header{k}, ...
+                            '^\s*-ADBitVolts\s+', '');
+                        ADBitVolts = str2double(ADBitVoltstr);
+                        if isempty(ADBitVolts)
+                            warning('dg_rmStimArtifact:badADBitVolts', ...
+                                'Could not convert number from:\n%s', ...
+                                header{k} );
+                        else
+                            dg_Nlx2Mat_Samples = ADBitVolts ...
+                                * dg_Nlx2Mat_Samples;
+                            dg_Nlx2Mat_SamplesUnits = 'V'; %#ok<NASGU>
+                            threshval = ADBitVolts * threshval;
+                        end
+                    end
+                end
+            else
+                dg_Nlx2Mat_SamplesUnits = 'AD'; %#ok<NASGU>
+            end
+        case '.mat'
+            load(fullfile(src, filenames{fileidx}));
+        otherwise
+            error('dg_rmStimArtifact:badinfiletype', ...
+                'Unrecognized file extension: %s', ext);
+    end
+    if verboseflag
+        fprintf('Read %s\n', fullfile(src, filenames{fileidx}));
+    end
+    [prethreshval, preisgood] = ctrlfileStats(dg_Nlx2Mat_Samples, thresh);
+    if ~preisgood
+        warning('dg_rmStimArtifact:noartifact', ...
+            '%s may not actually contain stim artifacts', ...
+            filenames{fileidx});
+    end
+    sameTS(fileidx) = isequal(dg_Nlx2Mat_Timestamps, ctrlTS);
+    sampleperiod = median(diff(dg_Nlx2Mat_Timestamps)) / ...
+        size(dg_Nlx2Mat_Samples,1);
+    numIntrp = round(diff(offsets) / sampleperiod) + 1;
+    allTS = repmat(dg_Nlx2Mat_Timestamps, size(dg_Nlx2Mat_Samples,1), 1) ...
+        + sampleperiod * repmat((0:size(dg_Nlx2Mat_Samples,1) - 1)', 1, ...
+        size(dg_Nlx2Mat_Samples, 2));
+    laststimsample = 1;
+    for stimnum = 1:length(trigTS)
+        startsample = laststimsample;
+        endsample = min( numel(dg_Nlx2Mat_Samples), ...
+            startsample + floor(5e6/sampleperiod) );
+        if sameTS(fileidx)
+            index = trigsamp(stimnum);
+        else
+            index = dg_binsearch(allTS(:), trigTS(stimnum), ...
+                startsample, endsample);
+        end
+        if allTS(index) - trigTS(stimnum) > sampleperiod/2
+            index = index - 1;
+        end
+        index = index + round(offsets(1) / sampleperiod);
+        if index < numel(allTS)+1
+            if index+numIntrp < numel(dg_Nlx2Mat_Samples)+1
+                dg_Nlx2Mat_Samples(index + (0:numIntrp)) = linspace( ...
+                    dg_Nlx2Mat_Samples(index), ...
+                    dg_Nlx2Mat_Samples(index+numIntrp), numIntrp+1 );
+            else
+                dg_Nlx2Mat_Samples(index:end) = dg_Nlx2Mat_Samples(index);
+            end
+        else
+            break
+        end
+        laststimsample = index;
+    end
+    if preisgood && sum(dg_Nlx2Mat_Samples(:) > prethreshval) >= ...
+            numel(dg_Nlx2Mat_Samples)/1e6
+        warning('dg_rmStimArtifact:artifact', ...
+            '%s still contains at least one in\na million large-valued samples after interpolation.', ...
+            filenames{fileidx});
+    end
+    [~, n] = fileparts(filenames{fileidx});
+    matfilepath = fullfile(dest, [n, 'rmstim.mat']);
+    save(matfilepath, 'dg_Nlx2Mat_Timestamps', ...
+        'dg_Nlx2Mat_Samples', 'dg_Nlx2Mat_SamplesUnits', '-v7.3');
+    if verboseflag
+        fprintf('Wrote %s\n', matfilepath);
+    end
+end
+
+end
+
+
+function [threshval, isgood] = ctrlfileStats(samples, thresh)
+isgood = false;
+nbins = 100;
+medval = median(samples(:));
+maxval = max(samples(:));
+minval = min(samples(:));
+threshval = thresh * (maxval - medval) + medval;
+valrange = maxval - minval;
+binedges = minval + (0:nbins) * valrange / nbins;
+counts = histc(samples(:), binedges);
+[~, maxidx] = max(counts);
+modeval = binedges(maxidx) + valrange / nbins / 2;
+if modeval - medval > medval + (maxval - medval) / 10
+    % The mode is not near the median
+    isgood = false;
+    return
+end
+startidx = maxidx;
+% Find the valley between modes
+while startidx < length(counts) && counts(startidx) > counts(startidx+1)
+    startidx = startidx + 1;
+end
+if startidx >= length(counts)
+    % There is no valley
+    return
+end
+[~, maxidx2] = max(counts(startidx:end));
+modeval2 = binedges(maxidx2 + startidx - 1) + valrange / nbins / 2;
+if modeval2 <= threshval
+    % Second mode is below threshold
+    return
+end
+isgood = true;
+
+end
+
+
+

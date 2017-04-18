@@ -1,0 +1,25 @@
+function sessionroot = dg_findSessionRoot(mydirectory)
+%sessionroot = dg_findSessionRoot(mydirectory)
+% Finds the root session directory for the session or fragment at
+% <mydirectory>.
+
+%$Rev: 114 $
+%$Date: 2011-05-24 20:04:46 -0400 (Tue, 24 May 2011) $
+%$Author: dgibson $
+
+sessionroot = [];
+while isempty(sessionroot)
+    fraginfofilepath = fullfile(mydirectory, 'lfp_FragmentFiles.mat');
+    fraginfofilepath2 = fullfile(mydirectory, 'lfp_fragmentfiles.mat');
+    [parent,name,ext] = fileparts(mydirectory);
+    if exist(fraginfofilepath, 'file') || exist(fraginfofilepath2, 'file')
+        mydirectory = parent;
+    else
+        if isempty(name)
+            % Oops, hit the file system root
+            return
+        else
+            sessionroot = mydirectory;
+        end
+    end
+end

@@ -1,0 +1,72 @@
+function [TS, TTL, ES, Hdr] = dg_readEvents(filename, varargin)
+%[TS, TTL, ES, Hdr] = dg_readEvents(filename, 'text')
+%[TS, TTL, ES, Hdr] = dg_readEvents(filename)
+%   TS:  Timestamps in clock ticks (units as recorded)
+%   TTL:  TTL IDs.  These are returned as signed integers, with 2^15 bit 
+%       (strobe/sync) propagated to the left.  To extract the lower 15
+%       bits, add 2^15 to negative values to yield positive integers.
+%   ES:  Event strings.
+% OPTIONS
+%   'text' - creates a text translation of the events file; presents a GUI
+%       to specify the location of the output file.
+%   'preset', outfilename - Bypass the GUI for specifying the output file
+%       location, and write to <outfilename>, overwriting any existing file
+%       at that location.
+%NOTES
+%   See dg_txt2nev for converting from text files to Nlx.  See
+%   dg_writeNlxEvents for writing values as returned by dg_readEvents.
+
+%$Rev$
+%$Date$
+%$Author$
+
+presetflag = false;
+textflag = false;
+argnum = 1;
+while argnum <= length(varargin)
+    switch varargin{argnum}
+        case 'preset'
+            presetflag = true;
+            argnum = argnum + 1;
+            outfilename = varargin{argnum};
+        case 'text'
+            textflag = true;
+        otherwise
+            error('dg_readEvents:badoption', ...
+                ['The option "' varargin{argnum} '" is not recognized.'] );
+    end
+    argnum = argnum + 1;
+end
+if isempty(filename)
+    [FileName,PathName] = uigetfile({'*.nev'
+        '*.dat'
+        '*.*' }, ...
+        'Choose events file');
+    filename = fullfile(PathName, FileName);
+end
+[TS, TTL, ES, Hdr] = Nlx2MatEV(filename, [1, 0, 1, 0, 1], 1, 1);
+if isempty(Hdr{end}) || ~isempty(regexp(Hdr{end}, '^\s*$', 'once' ))
+    Hdr(end) = [];
+else
+    warning('dg_readEvents:badHdr', ...
+        'Header was not properly terminated with an empty line' );
+end
+if textflag
+    if ~presetflag
+        [FileName,PathName] = uiputfile('events.txt');
+        outfilename = fullfile(PathName, FileName);
+    end
+    fid = fopen(outfilename, 'w');
+    if fid == -1
+        error('dg_readEvents:badoutfile', ...
+            'Could not open %s for writing', fullfile(PathName, FileName) );
+    end
+    for k = 1:length(Hdr)
+        fprintf(fid, '%s\n', Hdr{k});
+    end
+    fprintf(fid, '\n');
+    for k = 1:length(TS)
+        fprintf(fid, '%.0f\t%.0f\t%s\n', TS(k), TTL(k), ES{k});
+    end
+    fclose(fid);
+end

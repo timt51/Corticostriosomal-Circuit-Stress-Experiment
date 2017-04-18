@@ -1,0 +1,124 @@
+function dg_decodeEvtBits(infile, outfile, evtstable, delay)
+%dg_decodeEvtBits(infile, outfile, evtstable)
+%dg_decodeEvtBits(infile, outfile, evtstable, delay)
+% Converts TTL values including hard-wired one-bit-per-device events into
+% numeric codes for bit-on and bit-off for each bit.  Reads and writes
+% Neuralynx events file format.
+%INPUTS
+% infile - pathname to input file
+% outfile - pathname to output file
+% evtstable - determines which bits in the TTL values are monitored for
+%   state transitions, and how the transitions are represented in the
+%   output.  <evtstable> contains one row for each bit to monitor.  The
+%   first column designates the bit to monitor, where bits are numbered
+%   sequentially starting at 1 for the lowest-order bit (usually called
+%   "bit0" by engineers).  The second column is the event code to use when
+%   that bit goes high (turns on), and the third column is the event code
+%   to use when that bit goes low (turns off).  If more than one bit
+%   changes between two successive event records, then separate events are
+%   inserted for each transition at <delay> microsecond intervals.
+% delay - the number of microseconds delay between the decoded events for
+%   bits that change simultaneously.  This arg is optional and defaults to
+%   1.
+
+%$Rev$
+%$Date$
+%$Author$
+
+if nargin < 4
+    delay = 1;
+end
+
+[TS, TTL, ES, Hdr] = dg_readEvents(infile);
+TTL(TTL<0) = TTL(TTL<0) + 2^16;
+
+% Find the bits that differ and are in <evtstable>:
+bitdiff = NaN(size(TTL));
+bitmask = 0;
+bitcodes = NaN(16,2);   % rownum = bitnum (starting at 1); col 1 on, 2 off
+for k = 1:size(evtstable,1)
+    bitmask = bitor(bitmask, 2^(evtstable(k,1) - 1));
+    bitcodes(evtstable(k,1), :) = evtstable(k,2:3);
+end
+bitdiff(1) = bitand(bitmask, TTL(1));
+for k = 2:length(TTL)
+    bitdiff(1,k) = bitand(bitmask, bitxor(TTL(k), TTL(k-1)));
+end
+
+% Incredibly, the following method of counting bits is 3x faster than a
+% for-loop bit shifter:
+[f,e]=log2(max(bitdiff)); %#ok<*ASGLU>
+for k = 1:length(bitdiff)
+    numbitsdiff(k) = sum(rem( floor(bitdiff(k) * ...
+        pow2(1-max(1,e):0)), 2 ));
+end
+
+% Single bit changes only require a new TTL and matching ES:
+singlediffidx = find(numbitsdiff == 1);
+for k = 1:length(singlediffidx)
+    [f,bitnum] = log2(bitdiff(singlediffidx(k)));
+    if bitand(bitdiff(singlediffidx(k)), TTL(singlediffidx(k)))
+        % the bit turned on
+        TTL(singlediffidx(k)) = bitcodes(bitnum, 1);
+        ES{singlediffidx(k)} = sprintf('bit(%d) ON', bitnum);
+    else
+        % the bit turned off
+        TTL(singlediffidx(k)) = bitcodes(bitnum, 2);
+        ES{singlediffidx(k)} = sprintf('bit(%d) OFF', bitnum);
+    end
+end
+
+% Multi-bit changes require surgery to the data vectors:
+multidiffidx = find(numbitsdiff > 1);
+if ~isempty(multidiffidx)
+    TS2 = cell(1, 2*length(multidiffidx)+1);
+    TTL2 = cell(1, 2*length(multidiffidx)+1);
+    ES2 = {};
+    for k = 1:length(multidiffidx)
+        % copy the preceding series of events
+        if k == 1
+            idx = 1 : (multidiffidx(k) - 1);
+        else
+            idx = multidiffidx(k-1)+1 : multidiffidx(k)-1;
+        end
+        TTL2{2*k - 1} = TTL(idx);
+        ES2 = [ES2; ES(idx)]; %#ok<*AGROW>
+        TS2{2*k - 1} = TS(idx);
+        % create the new series of events to insert
+        bitnumlist = find( ...
+            rem(floor(bitdiff(multidiffidx(k))*pow2(0:-1:1-max(1,e))),2) );
+        for j = 1:length(bitnumlist)
+            bitnum = bitnumlist(j);
+            if bitand(2^(bitnum-1), TTL(multidiffidx(k)))
+                % the bit turned on
+                TTL2{2*k}(j) = bitcodes(bitnum, 1);
+                ES2 = [ES2; {sprintf('bit(%d) ON', bitnum)}];
+            else
+                % the bit turned off
+                TTL2{2*k}(j) = bitcodes(bitnum, 2);
+                ES2 = [ES2; {sprintf('bit(%d) OFF', bitnum)}];
+            end
+            % timestamps are in microseconds; add <delay> microseconds for
+            % each additional event:
+            TS2{2*k}(j) = TS(multidiffidx(k)) + delay * (j - 1);
+        end
+    end
+    % copy the events after the last insertion
+    idx = multidiffidx(k)+1 : length(TS);
+    TTL2{2*k + 1} = TTL(idx);
+    ES2 = [ES2; ES(idx)];
+    TS2{2*k + 1} = TS(idx);
+    % convert cell arrays to vectors (cell2mat does not work on cell arrays
+    % containing cell arrays)
+    TTL = cell2mat(TTL2);
+    TS = cell2mat(TS2);
+    ES = ES2;
+end
+
+Hdr = [
+    Hdr(1)
+    {sprintf('## File Name: (dg_decodeEvtBits): %s ', outfile)}
+    {sprintf('## Time Written:  (m/d/y): %s ', datestr(now, 0))}
+    Hdr(2:end)
+    ];
+dg_writeNlxEvents(outfile, TS, TTL, ES, Hdr);

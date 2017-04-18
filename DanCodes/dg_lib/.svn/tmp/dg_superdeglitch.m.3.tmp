@@ -1,0 +1,65 @@
+function [samples, numglitches] = dg_superdeglitch(samples, thresh, maxpts)
+%[samples, numglitches] = dg_superdeglitch(samples, thresh, maxpts)
+%  Returns the same sample data that was passed in, modified by
+%  removing glitches using the following algorithm.  First, known-good
+%  regions are marked by testing for glitches of all durations up to maxpts
+%  and removing any sequences of points that meet the definition of a
+%  glitch (see below).  Then, glitches are interpolated starting with the
+%  longest glitches first, and applying the rule that at least one of the
+%  surrounding endpoints must be on the known-good list.  Interpolated
+%  points and the surrounding endpoints get added to the known-good list.
+%  A k-point glitch is defined as a series of k points that differ from a
+%  preceding point "a" by more than <thresh>, but which is followed by a
+%  point "b" that differs from the predecessor point "a" by less than
+%  <thresh>.  <numglitches> is the number of glitches that were removed.
+%  It is explicitly NOT required that the k members of the k-point glitch
+%  be within <thresh> of each other, only that they be more than <thresh>
+%  from "a".  This makes it possible to remove random noise bursts.  NaN
+%  values do not qualify as glitches, but they also don't qualify as
+%  endpoints of a sequence to interpolate.
+
+%$Rev$
+%$Date$
+%$Author$
+
+origsize = size(samples);
+samples = reshape(samples,[],1);
+for k = 1:(maxpts+1)
+    % dif{k} contains length(samples)-k points:
+    dif{k} = samples(1+k:end) - samples(1:end-k);
+end
+for k = 1:maxpts
+    % glitch{k} contains length(samples)-k-1 points, each of which is true
+    % iff the current through the following k+1 sample points constitute a
+    % k-point glitch:
+    npts = length(samples) - k - 1;
+    glitch{k} = abs(dif{1}(1:npts)) > thresh;
+    for nxpt = 2:k
+        glitch{k} = glitch{k} & abs(dif{nxpt}(1:npts)) > thresh;
+    end
+    glitch{k} = glitch{k} & abs(dif{k+1}(1:npts)) < thresh;
+end
+isgood = ~isnan(samples);
+for k = 1:maxpts
+    % glitch{k} marks the last good data point before each glitch, so the
+    % actual glitch members are the 1:k-th points after it; mark each one
+    % of them for each value of k:
+    for glitchmember = 1:k
+        isgood(1:end-k-1+glitchmember) = ...
+            isgood(1:end-k-1+glitchmember) & ...
+            [ones(glitchmember,1); ~glitch{k}(1:end)];
+    end
+end
+for k = maxpts:-1:1
+    % This might be parallelizable, but is written iteratively for clarity:
+    for a = find(glitch{k})'
+        if isgood(a) || isgood(a+k+1)   % either endpoint is good
+            if all(~isgood(a+1:a+k))    % all interior points are bad
+                samples(a:a+k+1) = linspace(samples(a), samples(a+k+1), k+2);
+                isgood(a:a+k+1) = true;
+            end
+        end
+    end
+end
+
+samples = reshape(samples, origsize);

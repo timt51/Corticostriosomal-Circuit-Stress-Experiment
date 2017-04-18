@@ -1,0 +1,39 @@
+function [P, freqs, wt] = dg_morletgram(x, dt, fspacing, freqlim, param)
+%INPUTS
+% x: time series vector.
+% dt: sample period.
+% fspacing: ratio between scales on successive rows.
+% freqlim: two-element vector where freqlim(1) is the the pseudo-frequency
+%   of the longest scale and freqlim(2) is a limit which will not be
+%   exceeded by the pseudo-frequency of the shortest scale.
+% param: optional argument to specify the Morlet wavelet width parameter.
+%   This is approximately the number of cycles in the wavelet. Default = 6.
+%   Values below about 4 or 5 are considered dangerous, whereas above about
+%   15 they become boring.
+%OUTPUTS
+% P: pseudo-power, i.e. the squared magnitude of <wt.cfs>.
+% freqs: vector of pseudo-frequency values corresponding to the scale on
+%   each row of <wt>.
+% wt: the complex continuous wavelet transform of <x>, as returned by
+%   cwtft.
+
+%$Rev: 195 $
+%$Date: 2014-05-12 17:22:43 -0400 (Mon, 12 May 2014) $
+%$Author: dgibson $
+
+if nargin < 5
+    param = 6;
+end
+
+% convert everything to log units to construct the frequency grid.
+logfspacing = log(fspacing);
+logfreqlim = log(freqlim);
+logf = logfreqlim(1) : logfspacing : logfreqlim(2);
+freqs = exp(logf);
+
+sig1 =  struct('val',x,'period',dt);
+FourierFactor = 4*pi/(param+sqrt(2+param^2));
+scales = 1./(FourierFactor * freqs);
+wt = cwtft(sig1, 'scales', scales, 'wavelet', {'morl', param});
+P = wt.cfs .* conj(wt.cfs);
+

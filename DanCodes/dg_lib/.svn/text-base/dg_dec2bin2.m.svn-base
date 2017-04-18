@@ -1,0 +1,14 @@
+function str = dg_dec2bin2(n)
+%str = dg_dec2bin2(n)  Wrapper for dec2bin to convert negative binary
+%   numbers as well as positive, by prepending a minus sign to the
+%   converted value of -n.
+
+%$Rev$
+%$Date$
+%$Author$
+
+if n < 0
+    str = ['-' dec2bin(-n)];
+else
+    str = dec2bin(n);
+end

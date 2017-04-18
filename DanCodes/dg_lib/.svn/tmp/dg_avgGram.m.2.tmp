@@ -1,0 +1,223 @@
+function [hI, hCB, basespectrum] = dg_avgGram(figlist, varargin)
+%[hI, hCB] = dg_avgGram(figlist)
+%   Averages the data in a list of currently open or previously saved
+%   figure files and displays the result.  The figure files must contain
+%   exactly two images, the first of which contains the colorbar and the
+%   second of which contains the data.  This is the normal result of
+%   creating the figure by calling imagesc first and colorbar second.  The
+%   axes labellings, 'XData', and 'YData' are copied from the last figure
+%   in the list to the newly created figure, along with any line objects
+%   that have been drawn on the same axes as the gram.
+%
+%   Use dg_recolorGram to set color scale.
+
+% INPUTS:
+%   figlist - a list of figures to average; if of class 'double', then each
+%   element should be the handle of a figure window; if of class 'cell'
+%   then each element should be a filename string, either absolute or
+%   relative to current working directory.
+% OUTPUTS:
+%   [hI, hCB] - handles to new image and colorbar returned by dg_showGram.
+% OPTIONS:
+% 'alignL' - truncates different width grams on the right as needed,
+%   keeping left edges in register.
+% 'baseline' - treats the first figure as a baseline period to be
+%   subtracted from the average of the remaining figures; the average of
+%   the first figure is taken in the X direction, and is replicated as many
+%   times as needed to create a baseline gram that fits the remaining
+%   figures in the X direction.  The number of elements in the Y direction
+%   must still be the same as in the following figures.  The resulting
+%   time-independent baseline gram is then subtracted from the result of
+%   averaging the remaining grams.  If 'log' is specified, then the logs of
+%   the baseline gram and the averaged gram are taken first, then the
+%   subtraction is done.  You cannot specify 'baseline' and 'norm' at the
+%   same time, but if there is a legitimate reason to combine them you can
+%   apply one, and then call dg_avgGram again to apply the other (you pick
+%   the order).
+% 'log' - converts result to dB.
+% 'norm' - divides result by its maximum value.
+
+%$Rev$
+%$Date$
+%$Author$
+
+argnum = 1;
+alignLflag = false;
+baselineflag = false;
+copylinesflag = false;
+logflag = false;
+normflag = false;
+while argnum <= length(varargin)
+    switch varargin{argnum}
+        case 'alignL'
+            alignLflag = true;
+        case 'baseline'
+            baselineflag = true;
+            baselinefig = figlist(1);
+            figlist = figlist(2:end);
+        case 'log'
+            logflag = true;
+        case 'norm'
+            normflag = true;
+        otherwise
+            error('dg_avgGram:badoption', ...
+                ['The option "' varargin{argnum} '" is not recognized.'] );
+    end
+    argnum = argnum + 1;
+end
+
+if baselineflag && normflag
+    error('dg_avgGram:badopt', ...
+        'Do not specify ''norm'' and ''baseline'' together.' );
+end
+
+switch(class(figlist))
+    case 'double'
+        hF_in = figlist;
+        for figidx = 1:length(figlist)
+            figname{figidx} = sprintf('Figure %d', hF_in(figidx));
+        end
+        if baselineflag
+            hF_baseline = baselinefig;
+            basename = sprintf('Figure %d', baselinefig);
+        end
+    case 'cell'
+        figname = figlist;
+        if baselineflag
+            basename = baselinefig{1};
+        end
+    otherwise
+        error('Bad argument type, must be double or cell');
+end
+
+if baselineflag
+    if isequal(class(figlist), 'cell')
+        open(basename);
+        hF_baseline = gcf;
+    end
+    hI_baseline = findobj(hF_baseline, 'Type', 'image');
+    basedata = get(hI_baseline(2), 'CData');
+    if isequal(class(figlist), 'cell')
+        close(hF_baseline);
+    end
+end    
+
+cdataArray = [];
+for figidx = 1:length(figlist)
+    if isequal(class(figlist), 'cell')
+        open(figlist{figidx});
+        hF_in(figidx) = gcf;
+    end
+    hI_in = findobj(hF_in(figidx), 'Type', 'image');
+    cdata = get(hI_in(2), 'CData');
+    if isempty(cdataArray)
+        cdataArray(:,:,1) = cdata;
+        if baselineflag
+            if size(cdata,1) ~= size(basedata,1)
+                if isequal(class(figlist), 'cell')
+                    close(hF_in);
+                end
+                error('%s does not match vertical size of baseline.', ...
+                    figname{figidx} );
+            end
+        end
+    else
+        if ~isequal(size(cdata), ...
+                [size(cdataArray,1) size(cdataArray,2)] )
+            if alignLflag && (size(cdata, 1) == size(cdataArray,1))
+                % truncate the larger array on the right
+                if size(cdata, 2) > size(cdataArray,2)
+                    warning('dg_avgGram:alignL1', ...
+                        'Clipping %s from %d to %d columns', ...
+                        figname{figidx}, ...
+                        size(cdata, 2), size(cdataArray,2) );
+                    cdata(:, size(cdataArray,2)+1 : end) = [];
+                else
+                    warning('dg_avgGram:alignL2', ...
+                        'At %s, clipping avg from %d to %d columns', ...
+                        figname{figidx}, ...
+                        size(cdataArray, 2), size(cdata,2) );
+                    cdataArray(:, size(cdata,2)+1 : end, :) = [];
+                end
+            else
+                if isequal(class(figlist), 'cell')
+                    close(hF_in);
+                end
+                error('%s does not match size of preceding figures.', ...
+                    figname{figidx} );
+            end
+        else
+            cdataArray(:,:,end+1) = cdata;
+        end
+    end
+    if figidx == length(figlist)
+        gramaxes = get(hI_in(2), 'Parent');
+        xlabel = get(gramaxes, 'XLabel');
+        ylabel = get(gramaxes, 'YLabel');
+        xvals = get(hI_in(2), 'XData');
+        yvals = get(hI_in(2), 'YData');
+        cbaraxes = get(hI_in(1), 'Parent');
+        cbarlabel = get(cbaraxes, 'YLabel');
+        xlabstr = get(xlabel, 'String');
+        ylabstr = get(ylabel, 'String');
+        clabstr = get(cbarlabel, 'String');
+    end
+    if isequal(class(figlist), 'cell') && figidx ~= length(figlist)
+        close(hF_in(figidx));
+    end
+end
+
+fignamedisp = '';
+for figidx = 1:length(figname)
+    fignamedisp = [ fignamedisp sprintf('disp(''%s'');', figname{figidx}) ];
+end
+newdata = mean(cdataArray,3);
+if normflag
+    newdata = newdata / max(max(newdata));
+end
+fignamedisp = [ fignamedisp sprintf('disp(''normalization = %d'');', ...
+    normflag) ];
+scalestr = 'linear';
+if logflag
+    if any(any(newdata < 0))
+        warning('Ignoring ''log'' option due to non-positive result');
+        logflag = false;
+    else
+        newdata = 10 * log10(newdata);
+        scalestr = 'dB';
+    end
+end
+if baselineflag
+    basespectrum = mean(basedata,2);
+    if logflag
+        if any(any(basespectrum < 0))
+            warning('Ignoring ''log'' option on baseline due to non-positive result');
+            scalestr = 'dB - lin baseline';
+        else
+            basespectrum = 10 * log10(basespectrum);
+        end
+    end
+    basegram = repmat(basespectrum, 1, size(newdata,2));
+    newdata = newdata - basegram;
+end
+fignamedisp = [ fignamedisp sprintf('disp(''color scale = %s'');', scalestr) ];
+if baselineflag
+    baselinestr = sprintf('baseline = %s', basename);
+else
+    baselinestr = 'no baseline';
+end
+fignamedisp = sprintf('%sdisp(''%s'');', ...
+    fignamedisp, baselinestr);
+hF = figure;
+[hI, hCB] = dg_showGram(hF, xvals, yvals, newdata, ...
+    '', xlabstr, ylabstr, clabstr);
+hL = findobj(gramaxes, 'Type', 'line');
+copyobj(hL, get(hI, 'Parent'));
+hA = get(hI, 'Parent');
+hT = title(hA, 'Click here for input figure list & options');
+set(hT, 'ButtonDownFcn', fignamedisp);
+if isequal(class(figlist), 'cell')
+    close(hF_in(figidx));
+end
+
+

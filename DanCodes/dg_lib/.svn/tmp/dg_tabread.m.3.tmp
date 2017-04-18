@@ -1,0 +1,64 @@
+function num = dg_tabread(filename)
+%DG_TABREAD reads tab-delimited text spreadsheets
+%num = dg_tabread(filename)
+% Behaves similarly to num = xlsread(filename), except that <filename> must
+% be the pathname of a tab-delimited text file:  dg_tabread ignores leading
+% rows or columns of text; however, if a cell not in a leading row or
+% column is empty or contains text, dg_tabread puts a NaN in its place in
+% the return array, num.  Tolerates unequal numbers of tabs per line.
+
+%$Rev$
+%$Date$
+%$Author$
+
+allocsize = 512;
+num = zeros(allocsize); % pre-allocate for speed
+linenum = 0;
+numcols = 0;
+
+fid = fopen(filename);
+if fid == -1
+    error('Could not open %s', filename);
+end
+
+line = fgetl(fid);
+while ~isequal(line, -1)
+    linenum = linenum + 1;
+    tabs = regexp(line, '\t');
+    tabs(end+1) = length(line) + 1;
+    numcols = max(numcols, length(tabs));
+    % Allocate more storage if needed:
+    if linenum > size(num,1)
+        num = [ num; zeros(allocsize, size(num,2)) ];
+    end
+    if numcols > size(num,2)
+        num = [ num zeros(size(num,1), allocsize) ];
+    end
+    % convert text to number:
+    value = str2num(line(1 : tabs(1)-1));
+    if isempty(value)
+        num(linenum, 1) = NaN;
+    else
+        num(linenum, 1) = value;
+    end
+    for tabnum = 2:length(tabs)
+        value = str2num(line(tabs(tabnum-1)+1 : tabs(tabnum)-1));
+        if isempty(value)
+            num(linenum, tabnum) = NaN;
+        else
+            num(linenum, tabnum) = value;
+        end
+    end
+    line = fgetl(fid);
+end
+% Trim off unused allocated storage:
+num = num(1:linenum, 1:numcols);
+% Trim off empty leading rows and columns:
+while ~isempty(num) && all(isnan(num(1,:)))
+    num(1,:) = [];
+end
+while ~isempty(num) && all(isnan(num(:,1)))
+    num(:,1) = [];
+end
+
+fclose(fid);

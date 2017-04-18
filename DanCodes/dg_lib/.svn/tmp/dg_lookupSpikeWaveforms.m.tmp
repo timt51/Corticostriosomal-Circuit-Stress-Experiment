@@ -1,0 +1,108 @@
+function spikewaves = dg_lookupSpikeWaveforms(fn1, fn2)
+%spikewaves = dg_lookupSpikeWaveforms(fn1, fn2)
+% Reads timestamps and cluster IDs from the 'Multiple Cut Cluster (*.MAT)'
+% file <fn1>, finds the same spikes in the raw Neuralynx tetrode file
+% <fn2>, and appends the spike waveforms to the data from <fn1>.
+% Timestamps and cluster IDs can also be submitted directly as a numeric
+% array value for <fn1>, in which case no cluster file is read.  <fn2> can
+% be omitted or empty, in which case a "best effort" is made to find the
+% the Neuralynx file that matches <fn1>; in this case <fn1> must be a
+% file pathname, not a numeric array.  If more than one matching file is
+% found, the last one found is used.
+
+%$Rev$
+%$Date$
+%$Author$
+
+verboseflag = false;
+
+if nargin < 2 || isempty(fn2)
+    if isa(fn1, 'numeric')
+        error('dg_lookupSpikeWaveforms:badfn1', ...
+            '<fn2> must be specified when <fn1> is numeric data.' );
+    end
+    fn2 = '';
+end
+
+if isa(fn1, 'numeric')
+    spikewaves = fn1;
+else
+    [animaldir, name, ext] = fileparts(fn1);
+    if isempty(animaldir)
+        animaldir = pwd;
+    end
+    if ~isequal(upper(ext), '.MAT')
+        error('dg_lookupSpikeWaveforms:badfn1ext', ...
+            '<fn1> must be a ''Multiple Cut Cluster (*.MAT)'' file.' );
+    end
+    
+    if isempty(fn2)
+        % Attempt to parse name portion of fn1.  Examples:
+        %   ACQ06-T01.MAT (same interpretation as ACQ06.T01 T-file)
+        %   (No other name formats supported at this time)
+        delim1 = regexpi(name, '-T\d+$');
+        if isempty(delim1)
+            error('dg_lookupSpikeWaveforms:badfn1name', ...
+                '<fn1> must contain the string "-T".' );
+        end
+        sessionID = name(1 : delim1 - 1);
+        trodenum = str2num(name(delim1 + 2 : end));
+        sessiondir = fullfile(animaldir, sessionID);
+        
+        % Attempt to find matching Neuralynx file.
+        nlxname{1} = sprintf('TT%d', trodenum);
+        nlxname{2} = sprintf('T%02d', trodenum);
+        nlxext{1} = '.ntt';
+        nlxext{2} = '.dat';
+        for n = 1:2
+            for x = 1:2
+                myfn = fullfile(sessiondir, [nlxname{n} nlxext{x}]);
+                if exist(myfn) == 2
+                    fn2 = myfn;
+                    if verboseflag
+                        disp(sprintf('Found %s', fn2));
+                    end
+                else
+                    if verboseflag
+                        disp(sprintf('%s does not exist.', myfn));
+                    end
+                end
+            end
+        end
+        if isempty(fn2)
+            error('dg_lookupSpikeWaveforms:nofn2', ...
+                'Could not find Neuralynx file.' );
+        end
+    end
+    
+    % Load the cluster data from the .MAT file:
+    S = load(fn1);
+    fields = fieldnames(S);
+    spikewaves = S.(fields{1});
+    clear S;
+end
+
+% Read raw timestamps and waveforms; convert timestamps to seconds.
+[TS, points] = Nlx2MatTT(fn2, 1, 0, 0, 0, 1, 0);
+TS = TS * 1e-6;
+
+% Find each spike in spikewaves, and add its waveforms to spikewaves.
+spikewaves = [ spikewaves zeros(size(spikewaves,1), size(points,1) * size(points,2)) ];
+for spidx = 1:size(spikewaves,1)
+    ptsidx = find(abs(TS - spikewaves(spidx,1)) < 1.01e-4);
+    if length(ptsidx) == 0
+        warning('dg_lookupSpikeWaveforms:spikemissing', ...
+            'Could not find spike at %.6f s', spikewaves(spidx,1));
+        continue
+    end
+    if length(ptsidx) > 1
+        warning('dg_lookupSpikeWaveforms:spikedoubled', ...
+            'More than one spike at %.6f s; using first', ...
+            spikewaves(spidx,1));
+        ptsidx = ptsidx(1);
+    end
+    spikewaves(spidx, 3:end) = reshape(points(:, :, ptsidx), 1, []);
+end
+
+
+

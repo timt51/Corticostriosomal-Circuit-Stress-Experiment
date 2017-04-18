@@ -1,0 +1,17 @@
+function newstring = dg_DoubleBackslash(string)
+%newstring = dg_DoubleBackslash(string)
+% Returns a copy of string with each backslash replaced by two backslashes.
+% Handy for escaping DOS pathnames in TeX strings.
+
+%$Rev$
+%$Date$
+%$Author$
+
+newstring = [];
+bs = find(string == '\');
+previous = 0;
+for current = bs
+    newstring = [ newstring string(previous+1:current-1) '\\' ];
+    previous = current;
+end
+newstring = [ newstring string(previous+1:end) ];

@@ -1,0 +1,18 @@
+function dg_grep(regexp, varargin)
+
+%$Rev$
+%$Date$
+%$Author$
+
+thingflag = false;
+argnum = 1;
+while argnum <= length(varargin)
+    switch varargin{argnum}
+        case 'thing'
+            thingflag = true;
+        otherwise
+            error('funcname:badoption', ...
+                ['The option "' dg_thing2str(varargin{argnum}) '" is not recognized.'] );
+    end
+    argnum = argnum + 1;
+end
