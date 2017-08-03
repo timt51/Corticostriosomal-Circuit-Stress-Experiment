@@ -98,9 +98,15 @@ generate_traces; close all;                                                     
 generate_inTask_CDFs_bars; close all;                                                                   % OK
 generate_nonInTask_CDFs_bars; close all;                                                                % OK
 %% Analysis of PL baseline vs Strio/FSI baseline firing rate
+% generate_strio_response_to_swn_baseline; close all;                                                     % OK
 generate_strio_response_to_swn; close all;                                                              % OK
+% generate_strio_response_to_swn_lick; close all;                                                         % OK
+% response_to_pl_phasic_activity_swn_master_script_baseline; close all;                                   % OK
 response_to_pl_phasic_activity_swn_master_script; close all;                                            % OK
+% response_to_pl_phasic_activity_swn_master_script_lick; close all;                                       % OK
+% response_to_pl_phasic_activity_strio_master_script_baseline; close all;                                 % OK
 response_to_pl_phasic_activity_strio_master_script; close all;                                          % OK
+% response_to_pl_phasic_activity_strio_master_script_lick; close all;                                     % OK
 %% Classification of SWNs and MSNs in DMS
 fig_dir = [ROOT_DIR 'Clustering/'];
 if ~exist(fig_dir,'dir')
@@ -108,6 +114,7 @@ if ~exist(fig_dir,'dir')
 end
 generate_swn_classification_figures; close all;                                                         % OK
 generate_neruon_distributions; close all;                                                               % OK
+generate_neruon_distributions_median_log_ISIs; close all;                                               % OK
 generate_swn_proportions; close all;                                                                    % OK
 generate_fsi_vs_effect_of_stress; close all;                                                            % OK
 %% Line Plots Showing Activity of Individual Neurons During the Cost Benefit Task
@@ -144,6 +151,47 @@ Ts{2} = Ts_stress;
 generate_model_analysis; close all;                                                                     % OK
 generate_real_model_comparison; close all;                                                              % OK
 generate_model_stimulation; close all;                                                                  % OK
+
+% Analyze simulation with equal decrease in connectivity
+load('spike_times_3333.3333_130000_1.mat');
+pls_spikes_stress = pls_spikes{2};
+strio_spikes_stress = strio_spikes{2};
+swn_spikes_stress = swn_spikes{2};
+Ts_stress = Ts{ 2};
+load('spike_times_2500_130000_1.mat');
+pls_spikes{2} = pls_spikes_stress;
+strio_spikes{2} = strio_spikes_stress;
+swn_spikes{2} = swn_spikes_stress;
+Ts{2} = Ts_stress;
+generate_model_analysis_equal; close all;                                                               % OK
+generate_real_model_comparison_equal; close all;                                                        % OK
+
+load('spike_times_100000_2600_1.mat');
+generate_model_analysis_swn_strio; close all;                                                           % OK
+generate_real_model_comparison_swn_strio; close all;                                                    % OK
+load('spike_times_100000_3250_1.mat');
+generate_model_analysis_equal; close all;                                                               % OK
+load('spike_times_100000_4333.3333_1.mat');
+generate_model_analysis_equal; close all;                                                               % OK
+load('spike_times_100000_6500_1.mat');
+generate_model_analysis_equal; close all;                                                               % OK
+load('spike_times_100000_13000_1.mat');
+generate_model_analysis_equal; close all;                                                               % OK
+load('spike_times_100000_26000_1.mat');
+generate_model_analysis_equal; close all;                                                               % OK
+
+load('spike_times_70_10000_130000_1.mat');
+pls_spikes_control = pls_spikes{1};
+strio_spikes_control = strio_spikes{1};
+swn_spikes_control = swn_spikes{1};
+Ts_control = Ts{1};
+load('spike_times_70_1000_121000_1.mat');
+pls_spikes{1} = pls_spikes_control;
+strio_spikes{1} = strio_spikes_control;
+swn_spikes{1} = swn_spikes_control;
+Ts{1} = Ts_control;
+generate_model_analysis_reviewB;
+generate_real_model_comparison_review_modelB;
 %% PV Experiment
 pv_simple; close all;                                                                                   % OK
 % Generate examples of neurons under the influence of the excitatory and
@@ -170,3 +218,7 @@ generate_time_delays_distribution_examples; close all;                          
 generate_burst_detection_example; close all;                                                            % OK
 %% Example of A Possible Triplet of Connected Neurons
 generate_triplet_example; close all;                                                                    % OK
+%% Response to review
+triplet_patterns; close all;
+pls_swn_firing_rate_correlation2; close all;
+pls_strio_firing_rate_correlation2; close all;

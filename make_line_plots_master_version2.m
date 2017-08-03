@@ -1,4 +1,4 @@
-function make_line_plots_master(neuron_types, dbs, cb_ids, twdbs, ROOT_DIR, max_samples, neuron_type_idxs, types, save_line_plots, save_cascade, save_results)
+function make_line_plots_master_version2(neuron_types, dbs, cb_ids, twdbs, ROOT_DIR, max_samples, neuron_type_idxs, types, save_line_plots, save_cascade, save_results)
 % MAKE_LINE_PLOTS_MASTER generates lines plots and plots derived from line
 % plots. A line plot shows, for a given set of neurons, the time of peak
 % activity* for each neuron. There are two plots derived from line plots -
@@ -66,6 +66,9 @@ for neuron_type_idx = neuron_type_idxs
         max_ylim = max(cellfun(@length,neuron_type_ids)) + 3;
         neuron_type_ids{db} = neuron_type_ids{db}(randsample(1:length(neuron_type_ids{db}),num_samples));
         [times_of_max{db}, event_times{db}] = make_peak_activity_line_plot(twdb, neuron_type_ids{db},[sig_stds(neuron_type_idx) -1.5],num_samples,max_ylim,neuron_types{neuron_type_idx},false,types{neuron_type_idx}{db});
+        
+        [~,neurons_sorted_by_peak_indicies] = sort(times_of_max{db},'descend');
+        neuron_type_ids{db} = neuron_type_ids{db}(neurons_sorted_by_peak_indicies);
     end
     
     % Only keep the event times we need
@@ -86,7 +89,7 @@ for neuron_type_idx = neuron_type_idxs
         end
         
         max_ylim = num_samples + 5;
-        neuron_type_ids{db} = neuron_type_ids{db}(randsample(1:length(neuron_type_ids{db}),num_samples));
+        neuron_type_ids{db} = neuron_type_ids{db}(1:num_samples);
         make_peak_activity_line_plot(twdb, neuron_type_ids{db},[sig_stds(neuron_type_idx) -1.5],num_samples,max_ylim,neuron_types{neuron_type_idx},true,types{neuron_type_idx}{db});
     end
     
@@ -158,12 +161,47 @@ for neuron_type_idx = neuron_type_idxs
         ylim([0, num_samples+3]);
                 
         if save_line_plots
-            saveas(f, [fig_dir 'DB ' dbs{db} ' Samples ' num2str(max_samples) ' ' types{neuron_type_idx}{db} ' Line Plot'], 'fig');
-            saveas(f, [fig_dir 'DB ' dbs{db} ' Samples ' num2str(max_samples) ' ' types{neuron_type_idx}{db} ' Line Plot'], 'epsc2');
-            saveas(f, [fig_dir 'DB ' dbs{db} ' Samples ' num2str(max_samples) ' ' types{neuron_type_idx}{db} ' Line Plot'], 'jpg');
+%             saveas(f, [fig_dir 'DB ' dbs{db} ' Samples ' num2str(max_samples) ' ' types{neuron_type_idx}{db} ' Line Plot'], 'fig');
+%             saveas(f, [fig_dir 'DB ' dbs{db} ' Samples ' num2str(max_samples) ' ' types{neuron_type_idx}{db} ' Line Plot'], 'epsc2');
+%             saveas(f, [fig_dir 'DB ' dbs{db} ' Samples ' num2str(max_samples) ' ' types{neuron_type_idx}{db} ' Line Plot'], 'jpg');
+            tdir = ['./Temp/' neuron_types{neuron_type_idx}];
+            if ~exist(tdir, 'dir')
+                mkdir(tdir)
+            end
+            saveas(f,[tdir '/' dbs{db}],'fig');
+            saveas(f,[tdir '/' dbs{db}],'epsc2');
         end
     end
     close all;
+    
+    figure;
+    hold on;
+    [ps,time_points] = ecdf(times_of_max{1});
+    plot(time_points, ps,'LineWidth',2);
+    [ps,time_points] = ecdf(times_of_max{2});
+    plot(time_points, ps,'LineWidth',2);
+    [ps,time_points] = ecdf(times_of_max{3});
+    plot(time_points, ps,'LineWidth',2);
+    hold off;
+    legend('Control', 'Stress', 'Stress2');
+    title(['Neuron Type: ' neuron_types{neuron_type_idx}]);
+    xlabel('Time (s)'); ylabel('Proportion of Peaks');
+%     line([0 0], [0 1],'Color','black','LineWidth',2);
+%     line([1.5 1.5], [0 1],'Color','black','LineWidth',2);
+%     line([3 3], [0 1],'Color','black','LineWidth',2);
+    
+%     bins = -3:.5:6;
+%     figure;
+%     subplot(3,1,1)
+%     histogram(times_of_max{1},bins);
+%     subplot(3,1,2)
+%     histogram(times_of_max{2},bins);
+%     subplot(3,1,3)
+%     histogram(times_of_max{3},bins);
+%     hold off;
+%     legend('Control', 'Stress', 'Stress2');
+%     title(['Neuron Type: ' neuron_types{neuron_type_idx}]);
+%     close all;
 end
 
 % Make cascade plot
@@ -235,9 +273,9 @@ if ~exist(fig_dir,'dir')
     mkdir(fig_dir);
 end
 if save_cascade
-    saveas(f, [fig_dir num2str(neuron_type_idxs) ' Cascade'], 'fig');
-    saveas(f, [fig_dir num2str(neuron_type_idxs) ' Cascade'], 'epsc2');
-    saveas(f, [fig_dir num2str(neuron_type_idxs) ' Cascade'], 'jpg');
+%     saveas(f, [fig_dir num2str(neuron_type_idxs) ' Cascade'], 'fig');
+%     saveas(f, [fig_dir num2str(neuron_type_idxs) ' Cascade'], 'epsc2');
+%     saveas(f, [fig_dir num2str(neuron_type_idxs) ' Cascade'], 'jpg');
 end
 
 % Make entropy plot
@@ -248,14 +286,14 @@ strs = {'Control'; 'Stress'; 'Stress2'};
 set(gca, 'XTickLabel',strs, 'XTick',1:numel(strs));
 xlabel('Experimental Group'); ylabel('Entropy');
 if save_line_plots
-    saveas(f, [fig_dir num2str(neuron_type_idxs) ' Entropies'], 'fig');
-    saveas(f, [fig_dir num2str(neuron_type_idxs) ' Entropies'], 'epsc2');
-    saveas(f, [fig_dir num2str(neuron_type_idxs) ' Entropies'], 'jpg');
+%     saveas(f, [fig_dir num2str(neuron_type_idxs) ' Entropies'], 'fig');
+%     saveas(f, [fig_dir num2str(neuron_type_idxs) ' Entropies'], 'epsc2');
+%     saveas(f, [fig_dir num2str(neuron_type_idxs) ' Entropies'], 'jpg');
 end
 
 % Save distribution of time of max
 if save_results
-    all_times_of_max_real = all_times_of_max;
-    save('../Final Stress Data/all_times_of_max_real.mat', 'all_times_of_max_real');
+%     all_times_of_max_real = all_times_of_max;
+%     save('../Final Stress Data/all_times_of_max_real.mat', 'all_times_of_max_real');
 end
 end

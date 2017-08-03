@@ -97,6 +97,7 @@ if keep_allData && neuron_normalization
 elseif keep_allData
     fullData = -ones(length(large_spikes_array),numBins+1);
 end
+x=0;
 for trial_idx = 1:length(large_spikes_array)    %loop through every trial
     old_neuron = current_neuron;    %pointer for neuron of previous trial
     while trial_idx > neuron_idsAndData(current_neuron,2) %augment current neuron until trial index matches

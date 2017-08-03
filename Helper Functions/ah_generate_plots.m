@@ -74,7 +74,7 @@ while id <= length(varargin)
 
         [bins, ~, ~, nTrials2] = ah_fill_spike_plotting_bins(spikes_array, ses_evt_timings, neuronidsAndData, {}, {}, [600, 1, 2, .5, .6], [0 0]);
         [bins2,~,~,numTrials] = ah_fill_spike_plotting_bins(spikes_array, ses_evt_timings, neuronidsAndData, {}, {}, [600, 1, 2, .5, .6], [0 0]);
-        m = mean(bins(60:240,1))*nTrials2/numTrials; s = std(bins(60:240,1))*nTrials2/numTrials;
+        m = mean(smooth(bins(60:240,1),1))*nTrials2/numTrials; s = std(smooth(bins(60:240,1),1))*nTrials2/numTrials;
         tmp = conv(bins2(:,1), ones(1,25)/25); tmp1 = smooth(bins2(:,1),25); bins2 = [tmp1(1:24); tmp(25:600)];
         ah_plot_unsplit_maze(bins2,bins2,bins2,1,[54 33 8 33 54 1 1 m-stds*s m+stds*s .5 .6])
         title([fig_title ', N = ', N])

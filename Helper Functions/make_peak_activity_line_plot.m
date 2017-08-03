@@ -119,7 +119,7 @@ function [time_of_max, event_times] = make_peak_activity_line_plot(twdb, neuron_
             time_of_max = [time_of_max ts(idx1+600*click_r-preclick_bins-1)];
         elseif m <= low_sig_std
             time_of_max = [time_of_max ts(idx+600*click_r-preclick_bins-1)];
-        else
+        elseif strcmp(type,'inhibition')
             time_of_max = [time_of_max NaN];
         end
         
@@ -157,7 +157,7 @@ function [time_of_max, event_times] = make_peak_activity_line_plot(twdb, neuron_
             time_of_max = [time_of_max ts(idx1+600*click_r-preclick_bins-1)];
         elseif m >= high_sig_std
             time_of_max = [time_of_max ts(idx+600*click_r-preclick_bins-1)];
-        else
+        elseif strcmp(type,'excitation')
             time_of_max = [time_of_max NaN];
         end
 
@@ -165,7 +165,7 @@ function [time_of_max, event_times] = make_peak_activity_line_plot(twdb, neuron_
     end
     
     if plot
-        mean_event_times = mean(event_times);
+        mean_event_times = mean(event_times,1);
         line([mean_event_times(1) mean_event_times(1)], [0 num_samples+1], 'Color', [0 0 0], 'LineWidth', 1);
         line([mean_event_times(2) mean_event_times(2)], [0 num_samples+1], 'Color', [0 0 0], 'LineWidth', 1);
         line([mean_event_times(3) mean_event_times(3)], [0 num_samples+1], 'Color', [0 0 0], 'LineWidth', 1);

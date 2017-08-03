@@ -79,7 +79,12 @@ for db = 1:length(dbs)
         end
     end
 end
-intensities_mat = cell2mat(intensities); intensities_mat = log(intensities_mat(:,3));
+intensities_mat = cell2mat(intensities); 
+for db = 1:length(dbs)
+    if isempty(intensities{db})
+            intensities{db} = [0 0 0];
+    end
+end
 intensities = cellfun(@(x) [x(:,1:2) log(x(:,3))], intensities,'uni',false);
 
 high_intensity_windows = cellfun(@(x) x(x(:,3)>=prctile(x(:,3),percentiles(neuron_type_idx)),1:2),intensities,'uni',false);
@@ -111,7 +116,7 @@ for db = 1:length(dbs)
     end
 end
 disp([window_starts{neuron_type_idx}]);
-fig_dir = [ROOT_DIR 'Model/Striosomes/'];
+fig_dir = [ROOT_DIR 'Model Equal Effect of Stress/Striosomes/'];
 if ~exist(fig_dir, 'dir')
     mkdir(fig_dir);
 end
@@ -236,7 +241,7 @@ for db = 1:length(dbs)
     end
 end
 disp([window_starts{neuron_type_idx}]);
-fig_dir = [ROOT_DIR 'Model/SWNs/'];
+fig_dir = [ROOT_DIR 'Model Equal Effect of Stress/SWNs/'];
 if ~exist(fig_dir, 'dir')
     mkdir(fig_dir);
 end
@@ -252,11 +257,10 @@ saveas(fs(3), [fig_dir 'Stress2 SWNs Line Plot'], 'jpg');
 
 swn_zscores = [];
 all_zscores = {strio_zscores, swn_zscores};
-save('neuron_type_zscores_model.mat', 'all_zscores');
+save('neuron_type_zscores_model_equal.mat', 'all_zscores');
 
 all_times_of_max_model = all_times_of_max;
-save('all_times_of_max_model.mat', 'all_times_of_max_model');
-
+save('all_times_of_max_model_equal.mat', 'all_times_of_max_model');
 %% Cascade
 f = figure;
 count = 3;
@@ -321,7 +325,7 @@ for neuron_type_idx = [3,6]
         xlim([-1.5 6]); ylim([-1 3]);
     end
 end
-fig_dir = [ROOT_DIR 'Model/'];
+fig_dir = [ROOT_DIR 'Model Equal Effect of Stress/'];
 if ~exist(fig_dir,'dir')
     mkdir(fig_dir);
 end
