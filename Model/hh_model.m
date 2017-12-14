@@ -32,9 +32,12 @@ function [T, pl_spikes, strio_response, swn_response] = hh_model(PL_signal_type,
 %                 as input to the model. 
 %  DB_TYPE        - the name of the database from which the real PL data is
 %                 coming from
+%                   ------ I'm not sure what's value of the argument DB_TYPE, is it number or charactor?
+%
 %  TWDB           - the database from which the real PL data is coming from
 %  CB_PLS_IDS     - the indicies in TWDB corresponding to cost benefit PLs
 %                 neruons
+%                   ------ Do you have details of this argument? I cannot find it in the online data of Cell paper. Thanks!
 %
 % Outputs are:
 %  T              - the time points at which the model produces an output
